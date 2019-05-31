@@ -52,7 +52,6 @@ x_shape = (2, 3, 4, 4) #n,c,h,w
 w_shape = (2, 3, 3, 3) #f,c,hw,ww
 x = np.ones(x_shape)
 w = np.ones(w_shape)
-
 b = np.array([1,2])
  
 conv_param = {'stride': 1, 'pad': 0}
@@ -60,10 +59,6 @@ out, _ = conv_forward_naive(x, w, b, conv_param)
  
 print(out)
 print(out.shape)  #n,f,ho,wo
-
-
-
-
 '''
 def conv_backward_naive(dout, cache):
   """
@@ -107,8 +102,39 @@ def conv_backward_naive(dout, cache):
  
   return dx, dw, db
   
-  
-  
+def backward(residual, cache):
+    x, w, b, conv_param = cache
+    N, C, H, W = x.shape
+    F, _, HH, WW = w.shape
+    stride, pad = conv_param['stride'], conv_param['pad']
+    H_out = int(1 + (H + 2 * pad - HH) / stride)
+    W_out = int(1 + (W + 2 * pad - WW) / stride)
+
+    x_pad = np.pad(x, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
+    dx = np.zeros_like(x)
+    dx_pad = np.zeros_like(x_pad)
+    dw = np.zeros_like(w)
+    # db = np.zeros_like(self.b)
+
+    db = np.sum(residual, axis=(0, 2, 3))
+
+    x_pad = np.pad(x, ((0,), (0,), (pad,), (pad,)), mode='constant', constant_values=0)
+    for i in range(H_out):
+        for j in range(W_out):
+            x_pad_masked = x_pad[:, :, i * stride:i * stride + HH, j * stride:j * stride + WW]
+            for k in range(F):  # compute dw
+                dw[k, :, :, :] += np.sum(x_pad_masked * (residual[:, k, i, j])[:, None, None, None], axis=0)
+            for n in range(N):  # compute dx_pad
+                temp_w = np.rot90(w,2,(2,3))#这种写法不旋转
+                dx_pad[n, :, i * stride:i * stride + HH, j * stride:j * stride + WW] += np.sum((temp_w[:, :, :, :] * (residual[n, :, i,j])[:, None, None, None]), axis=0)
+    dx[:,:,:,:] = dx_pad[:, :, pad:pad+H, pad:pad+W]
+    '''
+    self.w -= self.lr * (dw + self.prev_gradient_w * self.reg)
+    self.b -= self.lr * db
+    self.prev_gradient_w = self.w
+    '''
+    return dx
+    
   
 x_shape = (2, 3, 4, 4)
 w_shape = (2, 3, 3, 3)
@@ -122,10 +148,13 @@ Ho = int((x_shape[3]+2*conv_param['pad']-w_shape[3])/conv_param['stride']+1)
 Wo = Ho
  
 dout = np.ones((x_shape[0], w_shape[0], Ho, Wo))
- 
+
 out, cache = conv_forward_naive(x, w, b, conv_param)
 dx, dw, db = conv_backward_naive(dout, cache)
-
+print(dx)
+dxx = backward(dout, cache)
+print(dxx)
+'''
 print("out shape",out.shape)
 print("dw==========================")
 print(dw)
@@ -133,6 +162,4 @@ print("dx==========================")
 print(dx)
 print("db==========================")
 print(db)
-
-
-https://blog.csdn.net/weixin_37251044/article/details/81349287
+'''
